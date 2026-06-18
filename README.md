@@ -45,3 +45,6 @@ Antigravity CLI tiene una arquitectura de cliente descentralizada. Para lograr u
 3. Abre Antigravity CLI y dile a tu agente:
    "Ejecuta la skill sync-conversations-antigravity para traer mis sesiones desde mi PC (usuario@direccion_ip)."
 4. Navega a la misma carpeta del proyecto y escribe /resume.
+
+## Auditorías de Seguridad (Falsos Positivos)
+Si analizas esta skill con herramientas de seguridad (como Gen Agent Trust Hub), es probable que detecten alertas como `DATA_EXFILTRATION` y `CREDENTIALS_UNSAFE`. Estos son **falsos positivos** y corresponden al comportamiento esperado y necesario: la herramienta transfiere explícitamente bases de datos locales y clona el `installation_id` a través de tu red privada para lograr la sincronización de sesiones entre tus propios dispositivos.
