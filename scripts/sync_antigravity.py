@@ -65,8 +65,18 @@ if os.path.exists(remote_history_tmp):
     os.remove(remote_history_tmp)
 
 # Pull databases, memories, and identity from remote to local safely without shell
+active_id = os.environ.get("ACTIVE_CONVERSATION_ID")
+exclude_args = []
+if active_id:
+    exclude_args = [
+        f"--exclude=conversations/{active_id}.db",
+        f"--exclude=conversations/{active_id}.db-wal",
+        f"--exclude=conversations/{active_id}.db-shm",
+        f"--exclude=brain/{active_id}"
+    ]
+
 p1 = subprocess.Popen(["ssh", remote, "wsl tar -czf - -C ~/.gemini/antigravity-cli brain conversations installation_id"], stdout=subprocess.PIPE)
-p2 = subprocess.Popen(["tar", "-xzf", "-", "-C", local_dir], stdin=p1.stdout)
+p2 = subprocess.Popen(["tar", "-xzf", "-"] + exclude_args + ["-C", local_dir], stdin=p1.stdout)
 p1.stdout.close()
 p2.communicate()
 

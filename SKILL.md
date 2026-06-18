@@ -36,5 +36,5 @@ To address static analysis security audits, please note that `scripts/sync_antig
 ## How to execute as an Agent
 When the user requests to synchronize Antigravity, the agent must:
 1. Identify the remote host alias or IP address (e.g. `pc`, `notebook`, `user@remote_host`) based on the user's request or by inspecting the SSH configuration in `~/.ssh/config`.
-2. Invoke the script passing the remote host as the argument:
-   `python ~/.agents/skills/sync-conversations-antigravity/scripts/sync_antigravity.py <remote_host>`
+2. Invoke the script by setting the `ACTIVE_CONVERSATION_ID` environment variable to your current conversation ID (session ID), passing the remote host as the argument:
+   `ACTIVE_CONVERSATION_ID=<current_conversation_id> python ~/.agents/skills/sync-conversations-antigravity/scripts/sync_antigravity.py <remote_host>`
