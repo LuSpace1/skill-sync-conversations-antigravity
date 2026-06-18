@@ -34,5 +34,7 @@ To address static analysis security audits, please note that `scripts/sync_antig
 **Exact Merge Logic:** It fetches the remote `history.jsonl` via a secure SSH pipe, sanitizes each JSON object to prevent prompt injections, stores them in memory, deduplicates records based on `timestamp` and `conversationId`, and performs an atomic file replacement before securely piping the tar archives back through your private SSH tunnel. No third-party APIs are called, and no credentials leave your private network.
 
 ## How to execute as an Agent
-When the user requests to synchronize Antigravity, the agent simply needs to invoke:
-`python ~/.agents/skills/sync-conversations-antigravity/scripts/sync_antigravity.py pc`
+When the user requests to synchronize Antigravity, the agent must:
+1. Identify the remote host alias or IP address (e.g. `pc`, `notebook`, `user@remote_host`) based on the user's request or by inspecting the SSH configuration in `~/.ssh/config`.
+2. Invoke the script passing the remote host as the argument:
+   `python ~/.agents/skills/sync-conversations-antigravity/scripts/sync_antigravity.py <remote_host>`

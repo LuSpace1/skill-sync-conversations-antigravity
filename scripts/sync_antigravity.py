@@ -13,8 +13,8 @@ if len(sys.argv) < 2:
 # Assign environment variables
 raw_remote = sys.argv[1]
 # Basic validation to prevent arbitrary flags
-if not re.match(r"^[a-zA-Z0-9_.-]+@[a-zA-Z0-9_.-]+$", raw_remote):
-    print("Error: Invalid remote format. Expected user@host.")
+if not re.match(r"^(?:[a-zA-Z0-9_.-]+@)?[a-zA-Z0-9_.-]+$", raw_remote):
+    print("Error: Invalid remote format. Expected user@host or host alias (e.g. pc).")
     sys.exit(1)
 remote = raw_remote
 local_history = os.path.expanduser("~/.gemini/antigravity-cli/history.jsonl")
