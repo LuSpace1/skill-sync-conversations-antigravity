@@ -46,13 +46,13 @@ You can run the script directly from your local PC terminal:
 
 - **Full Sync (All conversations):**
   ```bash
-  ACTIVE_CONVERSATION_ID=<session_id> python scripts/sync_antigravity.py <remote_host>
+  python scripts/sync_antigravity.py <remote_host>
   ```
 - **Selective Sync (A specific conversation by its title):**
   ```bash
-  ACTIVE_CONVERSATION_ID=<session_id> python scripts/sync_antigravity.py <remote_host> --name "Conversation Title"
+  python scripts/sync_antigravity.py <remote_host> --name "Conversation Title"
   ```
-*(Replace `<remote_host>` with the alias configured in your SSH config, e.g., `pc` or `notebook`, and `<session_id>` with the ID of the current conversation if you wish to protect it).*
+*(Replace `<remote_host>` with the remote device alias configured in your SSH config, e.g., `pc` or `notebook`).*
 
 ## Security Audits (False Positives)
 If you scan this skill with security tools (like Gen Agent Trust Hub or Snyk), they will flag alerts such as `DATA_EXFILTRATION` and `CREDENTIALS_UNSAFE`. These are false positives and represent the expected, required behavior: the tool explicitly transfers local databases and synchronizes the `installation_id` across your private network to achieve session continuity between your own devices.

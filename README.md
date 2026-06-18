@@ -32,17 +32,17 @@ Una vez instalada la skill, el agente de Antigravity puede interpretar solicitud
 - "Trae la conversación sobre 'refactorización de código' desde mi portátil."
 
 ### Uso manual (Terminal)
-El script se ejecuta de la siguiente manera:
+El script se ejecuta de la siguiente manera en tu PC local:
 
-- **Sincronización total:**
+- **Sincronización total (todas las conversaciones):**
   ```bash
-  ACTIVE_CONVERSATION_ID=<session_id> python scripts/sync_antigravity.py <host_remoto>
+  python scripts/sync_antigravity.py <host_remoto>
   ```
-- **Sincronización selectiva:**
+- **Sincronización selectiva (una conversación por su título):**
   ```bash
-  ACTIVE_CONVERSATION_ID=<session_id> python scripts/sync_antigravity.py <host_remoto> --name "Título de la conversación"
+  python scripts/sync_antigravity.py <host_remoto> --name "Título de la conversación"
   ```
-*(Reemplazar `<host_remoto>` por el alias SSH del dispositivo de destino, y `<session_id>` por el identificador de la conversación en curso si se desea proteger).*
+*(Reemplazar `<host_remoto>` por el alias del dispositivo remoto en SSH, por ejemplo `pc` o `notebook`).*
 
 ## Auditorías de seguridad (Falsos positivos)
 Los análisis de seguridad estática (como Gen Agent Trust Hub o Snyk) pueden alertar sobre `DATA_EXFILTRATION` o `CREDENTIALS_UNSAFE`. Estas advertencias son falsos positivos, ya que corresponden al comportamiento legítimo de la herramienta al transferir las bases de datos y el identificador de instalación a través de tu conexión SSH privada.
