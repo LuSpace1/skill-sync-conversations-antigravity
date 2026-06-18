@@ -4,6 +4,7 @@ import json
 import os
 import shlex
 import re
+import tempfile
 
 # Validate input arguments
 if len(sys.argv) < 2:
@@ -18,7 +19,7 @@ if not re.match(r"^(?:[a-zA-Z0-9_.-]+@)?[a-zA-Z0-9_.-]+$", raw_remote):
     sys.exit(1)
 remote = raw_remote
 local_history = os.path.expanduser("~/.gemini/antigravity-cli/history.jsonl")
-remote_history_tmp = "/tmp/history.jsonl.remote"
+remote_history_tmp = os.path.join(tempfile.gettempdir(), "history.jsonl.remote")
 merged_history = local_history + ".merged"
 local_dir = os.path.expanduser("~/.gemini/antigravity-cli")
 
