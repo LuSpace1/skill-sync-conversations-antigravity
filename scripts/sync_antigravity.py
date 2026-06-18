@@ -92,6 +92,11 @@ if sync_name:
         target_id = matches[0].get("conversationId")
         print(f"Selected conversation: '{matches[0].get('display')}' (ID: {target_id})")
 
+#Validate target_id format to prevent command injection
+if target_id and not re.match(r"^[a-fA-F0-9-]{36}$", target_id):
+    print("Error: Target conversation ID has an invalid format.")
+    sys.exit(1)
+
 #Filter duplicates and sort chronologically
 seen = set()
 merged = []
@@ -136,6 +141,10 @@ if os.path.exists(remote_history_tmp):
 
 #Pull databases, memories, and identity from remote to local safely without shell
 active_id = os.environ.get("ACTIVE_CONVERSATION_ID")
+#Validate active_id format to prevent command injection
+if active_id and not re.match(r"^[a-fA-F0-9-]{36}$", active_id):
+    active_id = None
+
 exclude_args = []
 if active_id:
     exclude_args = [
