@@ -1,58 +1,59 @@
 # Sync Conversations - Antigravity CLI
 
-Welcome to the Sync Conversations skill for Antigravity CLI. This skill allows you to backup, merge, and synchronize your AI conversational history across multiple devices (desktop PCs, laptops, servers, etc.).
+This tool allows you to automatically synchronize, backup, and merge your Antigravity CLI conversations across different development computers using an SSH connection.
 
-## Who is this for?
-- **Nomad Developers:** If you start a complex project on a powerful desktop PC and need to continue exactly where you left off on your laptop.
-- **Data Safekeepers:** Developers who want to maintain local backups of their AI agent's context and memories.
-- **Multi-Device Power Users:** Anyone who wants to keep their agent's sessions synchronized and unified across all physical machines.
+It is specifically designed for developers who work on multiple machines (such as a desktop PC and a laptop) and want to continue their work sessions exactly where they left off.
 
-## What does it do?
-This skill automates the secure transfer, merging, and integration of your AI's SQLite databases, memory logs, and JSON indexes so you can use the `/resume` command on a new machine as if you never left.
+## What does this tool do?
+* **Full Synchronization (Mirror):** Merges the conversation histories of both computers in chronological order, removes duplicate records, and updates the memory files (`brain/`) and session databases (`conversations/`) on both ends.
+* **Selective Synchronization:** Allows you to search for a specific conversation using a part of its title and transfer only its associated files, without altering the rest of your local chats.
+* **Active Session Protection:** If the sync is executed by the AI agent itself, the database of the active conversation is automatically excluded to prevent files from getting corrupted while they are being written to.
+* **Pure Python Portability:** All compression and transfer operations are handled using Python's standard `tarfile` module. It does not require external operating system tools (such as `tar` or `find`), ensuring it runs natively on Windows (CMD/PowerShell), Linux, macOS, and WSL without additional configurations.
 
-It supports two modes of operation:
-1. **Full Synchronization (Mirror):** Consolidates and synchronizes all your conversations between devices in a bidirectional and additive manner.
-2. **Selective Synchronization:** Allows you to fetch or send a single conversation by searching the history for its display title, without altering the rest of your local chats.
+## Prerequisites
+For the synchronization to work properly, you must meet the following requirements:
+1. **Network Connection:** Both computers must be connected to the same local network or via a virtual private network (like Tailscale).
+2. **SSH Access Configured:** The computer initiating the process must have SSH access configured to the remote machine. Public key authentication (passwordless) is highly recommended for friction-free automation.
+3. **Python 3 Installed:** Since the tool does not depend on external system utilities, both computers must have Python 3 installed.
 
-## Prerequisites (CRITICAL)
-For this skill to work, it must communicate between your devices securely. You must meet the following requirements:
-1. **Network Connection:** Both devices must be on the same local network, or connected via a virtual private network (like Tailscale or a VPN).
-2. **SSH Access:** The machine running the skill must have configured SSH access to the remote machine. Public key authentication (passwordless) is highly recommended for friction-free automation.
-3. **Packaging Tools:** The script requires the `tar` command to be available on the system (included by default in Linux, macOS, and native Windows 10/11).
-
-## Multiplatform Compatibility
-This skill has been designed to be compatible out-of-the-box with the following local and remote environments:
-- **macOS**
-- **Native Linux**
-- **Windows WSL**
-- **Native Windows** (CMD and PowerShell)
-
-The script dynamically detects if the remote host requires bridging through the `wsl` command and securely utilizes standard temporary directories based on the running operating system, eliminating the need to manually edit the code.
-
-## How it Works
-1. **Index Merging:** It downloads the `history.jsonl` from the remote machine and performs an in-memory merge with the local history, deduplicating by `timestamp` while preserving metadata.
-2. **Active Session Exclusion:** If the agent executes the script, it will automatically pass the `ACTIVE_CONVERSATION_ID` environment variable. The script will exclude those specific files from being overwritten during download to prevent corruption of the active SQLite session database.
-3. **Compressed Tar Pipeline:** It transmits memory directories (`brain/`) and conversation databases (`conversations/`) over an encrypted SSH pipe.
+## How the script works
+1. **Pre-flight Check:** Upon startup, it performs a quick SSH connection check with a 10-second timeout. If there is no connection, it aborts immediately with a clear message instead of failing halfway through the process.
+2. **Index Merging:** It downloads the remote `history.jsonl` index file, merges it in-memory with the local one (deduplicating by timestamp), and saves the combined file.
+3. **Binary Transfer:** Packages and decompresses the conversation files (`brain/` and `conversations/`) directly over the network by reading the binary streams of the SSH channel, without creating large intermediate files.
+4. **Identity Coherence:** During full synchronization, the local environment copies the remote `installation_id` so that the Antigravity backend correctly validates the workspace and recognizes the session immediately.
 
 ## How to Use It
 
-### Automatic Invocation by the Agent (Natural Language)
-Once the skill is installed, you can ask the Antigravity agent directly:
-* *"Sync all my Antigravity conversations from my PC"*
-* *"Bring the conversation about 'code refactoring' from my notebook"*
+The script supports two execution modes:
 
-### Manual Invocation (Command Line)
-You can run the script directly from your local PC terminal:
+### 1. Automatic Mode (No questions)
+To run the sync automatically without any questions, enter the parameters directly in the console:
 
-- **Full Sync (All conversations):**
-  ```bash
+* **Automatic Full Sync (All conversations):**
+  ```
   python scripts/sync_antigravity.py <remote_host>
   ```
-- **Selective Sync (A specific conversation by its title):**
-  ```bash
+* **Automatic Selective Sync (A specific conversation by its title):**
+  ```
   python scripts/sync_antigravity.py <remote_host> --name "Conversation Title"
   ```
-*(Replace `<remote_host>` with the remote device alias configured in your SSH config, e.g., `pc` or `notebook`).*
+*(Replace `<remote_host>` with the remote device name or alias configured in your SSH config, e.g., `desktop-pc` or `laptop`).*
+
+### 2. Interactive Mode (Guided console wizard)
+If you run the script manually from an IDE terminal (like VS Code) or directly in your system terminal without passing command-line arguments, the script will launch an interactive wizard that will guide you through the following prompts:
+
+1. **SSH Remote Host:** If the host argument is not provided, you will be prompted to enter it:  
+   *`Introduce el host remoto o alias de SSH (ej. pc, portatil, usuario@host):`*
+2. **Sync Type:** It will ask you what type of process you want to perform:  
+   *`¿Qué tipo de sincronización deseas realizar?`*  
+   *` 1. Sincronización completa (Espejo de todas las conversaciones)`*  
+   *` 2. Sincronización selectiva (Una conversación específica)`*
+3. **Search (selective only):** If you choose selective sync, it will prompt you for the conversation title:  
+   *`Introduce el título o palabras clave de la conversación:`*
+4. **Coincidence Resolution:** If multiple conversations match your search, the script will display a numbered list for you to choose the correct one before continuing:  
+   *`Selecciona una opción (1-N) o escribe 'c' para cancelar:`*
+
+---
 
 ## Security Audits (False Positives)
-If you scan this skill with security tools (like Gen Agent Trust Hub or Snyk), they will flag alerts such as `DATA_EXFILTRATION` and `CREDENTIALS_UNSAFE`. These are false positives and represent the expected, required behavior: the tool explicitly transfers local databases and synchronizes the `installation_id` across your private network to achieve session continuity between your own devices.
+If you scan this script with static security analysis tools (like Gen Agent Trust Hub or Snyk), warnings about insecure data transfer or confidential information might be generated. These alerts are expected false positives: the tool performs a legitimate transfer of your session databases and unifies the installation identifier across your private SSH tunnel to ensure service continuity on your own machines.
