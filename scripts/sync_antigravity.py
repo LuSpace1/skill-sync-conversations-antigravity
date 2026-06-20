@@ -24,7 +24,7 @@ args = parser.parse_args()
 
 raw_remote = args.remote
 sync_name = args.name
-is_interactive = sys.stdout.isatty()
+is_interactive = sys.stdin and sys.stdin.isatty()
 
 # Interactive prompt for SSH host if not provided
 if not raw_remote:
@@ -248,20 +248,30 @@ if not target_id or exists_remotely:
     if target_id:
         # Package only matching files using Python on the remote (no shell dependency)
         remote_cmd = (
-            f"python3 -c \"import sys, os, tarfile, glob; "
+            f"(python3 -c \"import sys, os, tarfile, glob; "
             f"os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
             f"tar = tarfile.open(fileobj=sys.stdout.buffer, mode='w:gz'); "
             f"files = glob.glob('brain/{target_id}') + glob.glob('conversations/{target_id}.*'); "
-            f"[tar.add(f) for f in files]; tar.close()\""
+            f"[tar.add(f) for f in files]; tar.close()\" 2>/dev/null || "
+            f"python -c \"import sys, os, tarfile, glob; "
+            f"os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
+            f"tar = tarfile.open(fileobj=sys.stdout.buffer, mode='w:gz'); "
+            f"files = glob.glob('brain/{target_id}') + glob.glob('conversations/{target_id}.*'); "
+            f"[tar.add(f) for f in files]; tar.close()\")"
         )
     else:
         # Full package using Python on the remote
         remote_cmd = (
-            "python3 -c \"import sys, os, tarfile, glob; "
+            "(python3 -c \"import sys, os, tarfile, glob; "
             "os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
             "tar = tarfile.open(fileobj=sys.stdout.buffer, mode='w:gz'); "
             "files = glob.glob('brain') + glob.glob('conversations') + glob.glob('installation_id'); "
-            "[tar.add(f) for f in files]; tar.close()\""
+            "[tar.add(f) for f in files]; tar.close()\" 2>/dev/null || "
+            "python -c \"import sys, os, tarfile, glob; "
+            "os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
+            "tar = tarfile.open(fileobj=sys.stdout.buffer, mode='w:gz'); "
+            "files = glob.glob('brain') + glob.glob('conversations') + glob.glob('installation_id'); "
+            "[tar.add(f) for f in files]; tar.close()\")"
         )
 
     print("Pulling files from remote...")
@@ -332,6 +342,10 @@ if not target_id or exists_locally:
         # Command on remote to extract files from stdin
         remote_extract_cmd = (
             "python3 -c \"import sys, os, tarfile; "
+            "os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
+            "tar = tarfile.open(fileobj=sys.stdin.buffer, mode='r|gz'); "
+            "tar.extractall(); tar.close()\" 2>/dev/null || "
+            "python -c \"import sys, os, tarfile; "
             "os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
             "tar = tarfile.open(fileobj=sys.stdin.buffer, mode='r|gz'); "
             "tar.extractall(); tar.close()\""
