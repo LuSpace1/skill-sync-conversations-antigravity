@@ -30,7 +30,7 @@ Conversations are strictly anchored to the project directory. Once synchronized,
 To ensure the local history is not overwritten when fetching the remote history, this skill includes a robust Python script that securely transfers the data via SSH and intelligently merges the JSONL files (sorting by timestamp and removing duplicates).
 
 ### Security & Merge Logic Transparency
-To address static analysis security audits, please note that `scripts/sync_antigravity.py` operates entirely locally using only standard Python libraries (`json`, `subprocess`, `shlex`). 
+To address static analysis security audits, please note that `scripts/sync_antigravity.py` operates entirely using only standard Python libraries (`json`, `subprocess`, `tarfile`). 
 **Exact Merge Logic:** It fetches the remote `history.jsonl` via a secure SSH pipe, sanitizes each JSON object to prevent prompt injections, stores them in memory, deduplicates records based on `timestamp` and `conversationId`, and performs an atomic file replacement before securely piping the tar archives back through your private SSH tunnel. No third-party APIs are called, and no credentials leave your private network.
 
 ## How to execute as an Agent
@@ -39,7 +39,7 @@ When the user requests to synchronize Antigravity, the agent must:
 2. Determine if the user wants to sync a specific conversation by name/title (e.g., "sync the conversation about code refactoring").
    - If a specific conversation is requested, the agent **must first inspect the local or remote history** to resolve and find the exact matching title (display name) of that conversation, resolving any partial matches or typos intelligently.
    - Pass this exact title to the script using the `--name` parameter.
-3. Invoke the script by setting the `ACTIVE_CONVERSATION_ID` environment variable to your current conversation ID (session ID), passing the remote host and optional name as arguments:
+3. Invoke the script by setting the `ACTIVE_CONVERSATION_ID` environment variable to your current conversation ID (session ID). **This is critical because it tells the script to exclude your active SQLite database and brain files from being overwritten, preventing your current session from getting corrupted or terminated.** Pass the remote host and optional name as arguments:
    - **Full Sync:**
      `ACTIVE_CONVERSATION_ID=<current_conversation_id> python ~/.agents/skills/sync-conversations-antigravity/scripts/sync_antigravity.py <remote_host>`
    - **Specific Conversation Sync:**
