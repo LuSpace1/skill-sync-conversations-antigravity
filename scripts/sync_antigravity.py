@@ -156,8 +156,10 @@ for f, lst in [(local_history, local_lines), (remote_history_tmp, remote_lines)]
                 line = line.strip()
                 if line:
                     data = json.loads(line)
-                    #Sanitize: ensure valid keys to prevent arbitrary payload injections
-                    if isinstance(data, dict) and "timestamp" in data and "conversationId" in data:
+                    #Sanitize: preserve any valid dict entry that has a timestamp.
+                    #Entries without conversationId (e.g. slash commands, session markers)
+                    #are kept as-is so they are not silently lost during a full sync.
+                    if isinstance(data, dict) and "timestamp" in data:
                         lst.append(data)
     except FileNotFoundError:
         pass
@@ -403,53 +405,52 @@ if not target_id or exists_remotely:
     if active_id and not re.match(r"^[a-fA-F0-9-]{36}$", active_id):
         active_id = None
 
+    #Build remote Python command using base64 to avoid shell interpretation issues
     if target_id:
-        # Package only matching files using Python on the remote (no shell dependency)
-        remote_cmd = (
-            f"(python3 -c \"import sys, os, tarfile, glob; "
-            f"os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
+        pull_script = (
+            "import sys, os, tarfile, glob; "
+            f"basedir = os.path.expanduser('~/.gemini/antigravity-cli'); "
+            f"os.chdir(basedir); "
             f"tar = tarfile.open(fileobj=sys.stdout.buffer, mode='w:gz'); "
             f"files = glob.glob('brain/{target_id}') + glob.glob('conversations/{target_id}.*'); "
-            f"[tar.add(f) for f in files]; tar.close()\" 2>/dev/null || "
-            f"python -c \"import sys, os, tarfile, glob; "
-            f"os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
-            f"tar = tarfile.open(fileobj=sys.stdout.buffer, mode='w:gz'); "
-            f"files = glob.glob('brain/{target_id}') + glob.glob('conversations/{target_id}.*'); "
-            f"[tar.add(f) for f in files]; tar.close()\")"
+            f"[tar.add(f) for f in files]; tar.close()"
         )
     else:
-        # Full package using Python on the remote
-        remote_cmd = (
-            "(python3 -c \"import sys, os, tarfile, glob; "
-            "os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
+        pull_script = (
+            "import sys, os, tarfile, glob; "
+            "basedir = os.path.expanduser('~/.gemini/antigravity-cli'); "
+            "os.chdir(basedir); "
             "tar = tarfile.open(fileobj=sys.stdout.buffer, mode='w:gz'); "
             "files = glob.glob('brain') + glob.glob('conversations') + glob.glob('installation_id'); "
-            "[tar.add(f) for f in files]; tar.close()\" 2>/dev/null || "
-            "python -c \"import sys, os, tarfile, glob; "
-            "os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
-            "tar = tarfile.open(fileobj=sys.stdout.buffer, mode='w:gz'); "
-            "files = glob.glob('brain') + glob.glob('conversations') + glob.glob('installation_id'); "
-            "[tar.add(f) for f in files]; tar.close()\")"
+            "[tar.add(f) for f in files]; tar.close()"
         )
 
+    script_b64 = base64.urlsafe_b64encode(pull_script.encode()).decode()
+    remote_cmd = f"python3 -c \"import base64; exec(base64.b64decode('{script_b64}'))\""
+
     print("Pulling files from remote...")
-    p1 = subprocess.Popen(["ssh", remote] + wsl_prefix + [remote_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
+    p1 = subprocess.Popen(["ssh", remote] + wsl_prefix + [remote_cmd], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
     try:
-        # Extract files locally using Python's tarfile module
+        #Extract files locally using Python's tarfile module
+        #filter='data' (Python 3.12+) blocks path traversal attacks safely.
+        #Older versions fall back to default behavior which is acceptable for trusted SSH sources.
+        _use_filter = sys.version_info >= (3, 12)
         with tarfile.open(fileobj=p1.stdout, mode="r|gz") as tar:
             for member in tar:
-                # Exclude active session files to prevent SQL database corruption
+                #Exclude active session files to prevent SQL database corruption
                 if active_id and (member.name.startswith(f"conversations/{active_id}") or member.name.startswith(f"brain/{active_id}")):
                     continue
-                # Ensure local directory structure exists
+                #Ensure local directory structure exists
                 dest_path = os.path.join(local_dir, member.name)
                 os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                tar.extract(member, path=local_dir)
+                if _use_filter:
+                    tar.extract(member, path=local_dir, filter='data')
+                else:
+                    tar.extract(member, path=local_dir)
         p1.wait()
         if p1.returncode != 0:
-            err_out = p1.stderr.read().decode().strip()
-            raise RuntimeError(f"Remote command failed with code {p1.returncode}: {err_out}")
+            raise RuntimeError(f"Remote command failed with code {p1.returncode}")
         print("Pull complete.")
     except Exception as e:
         print(f"Error during PULL file transfer: {e}")
@@ -497,31 +498,30 @@ if not target_id or exists_locally:
 
     if files_to_push:
         print("Pushing files to remote...")
-        # Command on remote to extract files from stdin
-        remote_extract_cmd = (
-            "python3 -c \"import sys, os, tarfile; "
-            "os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
+        #Command on remote to extract files from stdin (base64 to avoid shell issues)
+        extract_script = (
+            "import sys, os, tarfile; "
+            "basedir = os.path.expanduser('~/.gemini/antigravity-cli'); "
+            "os.makedirs(basedir, exist_ok=True); "
+            "os.chdir(basedir); "
             "tar = tarfile.open(fileobj=sys.stdin.buffer, mode='r|gz'); "
-            "tar.extractall(); tar.close()\" 2>/dev/null || "
-            "python -c \"import sys, os, tarfile; "
-            "os.chdir(os.path.expanduser('~/.gemini/antigravity-cli')) if os.path.exists(os.path.expanduser('~/.gemini/antigravity-cli')) else sys.exit(1); "
-            "tar = tarfile.open(fileobj=sys.stdin.buffer, mode='r|gz'); "
-            "tar.extractall(); tar.close()\""
+            "tar.extractall(); tar.close()"
         )
+        script_b64 = base64.urlsafe_b64encode(extract_script.encode()).decode()
+        remote_extract_cmd = f"python3 -c \"import base64; exec(base64.b64decode('{script_b64}'))\""
 
-        p2 = subprocess.Popen(["ssh", remote] + wsl_prefix + [remote_extract_cmd], stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        
+        p2 = subprocess.Popen(["ssh", remote] + wsl_prefix + [remote_extract_cmd], stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
         try:
-            # Create tarball locally in Python and write directly to the SSH stdin stream
+            #Create tarball locally in Python and write directly to the SSH stdin stream
             with tarfile.open(fileobj=p2.stdin, mode="w:gz") as tar:
                 for path in files_to_push:
-                    # add target to tar with relative path inside local_dir
+                    #Add target to tar with relative path inside local_dir
                     tar.add(os.path.join(local_dir, path), arcname=path)
             p2.stdin.close()
             p2.wait()
             if p2.returncode != 0:
-                err_out = p2.stderr.read().decode().strip()
-                raise RuntimeError(f"Remote command failed with code {p2.returncode}: {err_out}")
+                raise RuntimeError(f"Remote command failed with code {p2.returncode}")
             print("Push complete.")
         except Exception as e:
             print(f"Error during PUSH file transfer: {e}")
