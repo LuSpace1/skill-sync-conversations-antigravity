@@ -315,26 +315,26 @@ if sync_name:
         sys.exit(1)
     elif len(matches) > 1:
         if is_interactive:
-            print(f"\nSe encontraron múltiples conversaciones que coinciden con '{sync_name}':")
+            print(f"\nMultiple conversations found matching '{sync_name}':")
             for idx, m in enumerate(matches, 1):
                 print(f" {idx}. '{m.get('display')}' (ID: {m.get('conversationId')})")
             while True:
                 try:
-                    sel = input(f"Selecciona una opción (1-{len(matches)}) o escribe 'c' para cancelar: ").strip()
+                    sel = input(f"Select an option (1-{len(matches)}) or type 'c' to cancel: ").strip()
                     if sel.lower() == 'c':
-                        print("Sincronización cancelada por el usuario.")
+                        print("Synchronization canceled by user.")
                         if os.path.exists(remote_history_tmp):
                             os.remove(remote_history_tmp)
                         sys.exit(0)
                     sel_idx = int(sel) - 1
                     if 0 <= sel_idx < len(matches):
                         target_id = matches[sel_idx].get("conversationId")
-                        print(f"Conversación seleccionada: '{matches[sel_idx].get('display')}'")
+                        print(f"Selected conversation: '{matches[sel_idx].get('display')}'")
                         break
                     else:
-                        print("Número fuera de rango. Por favor intenta de nuevo.")
+                        print("Number out of range. Please try again.")
                 except ValueError:
-                    print("Entrada inválida. Introduce un número o 'c'.")
+                    print("Invalid input. Enter a number or 'c'.")
         else:
             print(f"Error: Ambiguity detected. Multiple conversations matched '{sync_name}':")
             for m in matches:
@@ -349,7 +349,7 @@ if target_id and not re.match(r"^[a-fA-F0-9-]{36}$", target_id):
     print("Error: Target conversation ID has an invalid format.")
     sys.exit(1)
 
-# Determine where the target conversation exists
+#Determine where the target conversation exists
 exists_locally = True
 exists_remotely = True
 if target_id:
@@ -374,7 +374,7 @@ if target_id:
             for line in fp:
                 if line.strip():
                     local_lines.append(json.loads(line.strip()))
-    
+
     #Check if target_id is already in local history
     if not any(item.get("conversationId") == target_id for item in local_lines):
         target_meta = next((item for item in merged if item.get("conversationId") == target_id), None)
@@ -483,7 +483,7 @@ if not target_id or exists_locally:
         brain_path_local = os.path.join(local_dir, "brain", target_id)
         if os.path.exists(brain_path_local):
             files_to_push.append(os.path.join("brain", target_id))
-        
+
         #Check if local conversation files exist
         conv_dir_local = os.path.join(local_dir, "conversations")
         if os.path.exists(conv_dir_local):
@@ -530,4 +530,4 @@ if not target_id or exists_locally:
 else:
     print("Conversation does not exist locally. Skipping file push.")
 
-print("\n--- ¡Sincronización completada exitosamente! ---")
+print("\n--- Synchronization completed successfully! ---")
