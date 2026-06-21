@@ -106,26 +106,23 @@ local_history = os.path.join(local_dir, "history.jsonl")
 remote_history_tmp = os.path.join(tempfile.gettempdir(), "history.jsonl.remote")
 merged_history = local_history + ".merged"
 
-# Interactive prompt for sync type if not specified via --name and running in a terminal
+#Interactive prompt for sync type if not specified via --name and running in a terminal
+direct_selection = False
+sync_option = None
 if not sync_name and is_interactive and len(sys.argv) <= 2:
-    print("\n¿Qué tipo de sincronización deseas realizar?")
-    print(" 1. Sincronización completa (Espejo de todas las conversaciones)")
-    print(" 2. Sincronización selectiva (Una conversación específica)")
+    print("\nWhat type of synchronization do you want to perform?")
+    print(" 1. Full synchronization (Mirror all conversations)")
+    print(" 2. Selective synchronization (Choose from the list of available conversations)")
     while True:
-        opcion = input("Selecciona una opción (1 o 2): ").strip()
-        if opcion == "1":
-            sync_name = None
+        option = input("Select an option (1 or 2): ").strip()
+        if option == "1":
+            sync_option = "full"
             break
-        elif opcion == "2":
-            while True:
-                sync_name = input("Introduce el título o palabras clave de la conversación: ").strip()
-                if not sync_name:
-                    print("El nombre de la conversación no puede estar vacío.")
-                    continue
-                break
+        elif option == "2":
+            sync_option = "selective"
             break
         else:
-            print("Opción inválida. Por favor, selecciona 1 o 2.")
+            print("Invalid option. Please select 1 or 2.")
 
 #PHASE 1: PULL (Fetch from remote)
 
@@ -166,6 +163,121 @@ for f, lst in [(local_history, local_lines), (remote_history_tmp, remote_lines)]
         pass
 
 lines = local_lines + remote_lines
+
+#Interactive selective mode: show numbered list of available conversations
+#This happens here because we already have the remote history loaded in memory.
+direct_target_id = None
+if sync_option == "selective" and is_interactive:
+    #Collect UUIDs and names from history.jsonl (local + remote)
+    conv_info = {}
+    for elem, is_local in [(e, True) for e in local_lines] + [(e, False) for e in remote_lines]:
+        cid = elem.get("conversationId")
+        if not cid:
+            continue
+        if cid not in conv_info:
+            conv_info[cid] = {"conversationId": cid, "display": "", "timestamp": elem.get("timestamp", 0), "local": False, "remote": False}
+            if elem.get("display"):
+                conv_info[cid]["display"] = elem.get("display", "")
+        else:
+            if elem.get("timestamp", 0) < conv_info[cid]["timestamp"]:
+                conv_info[cid]["timestamp"] = elem.get("timestamp", 0)
+                if elem.get("display"):
+                    conv_info[cid]["display"] = elem.get("display", "")
+        if is_local:
+            conv_info[cid]["local"] = True
+        else:
+            conv_info[cid]["remote"] = True
+
+    #Remote scan via inline Python to list conversations/ and brain/
+    #Using remote Python is more reliable than ls (no shell dependency, handles trailing /, etc.)
+    print("Scanning conversation directories on remote...")
+    scan_script = (
+        "import os,glob,sys;basedir=os.path.expanduser('~/.gemini/antigravity-cli');"
+        "found=set();"
+        "for root in ('conversations','brain'):"
+        "  p=os.path.join(basedir,root);"
+        "  if os.path.isdir(p):"
+        "    for f in os.listdir(p):"
+        "      name=f.split('.')[0];"
+        "      if len(name)==36 and name.replace('-','').isalnum():"
+        "        found.add(name);"
+        "for n in sorted(found): print(n)"
+    )
+    script_b64 = base64.urlsafe_b64encode(scan_script.encode()).decode()
+    scan_cmd = f"python3 -c \"import base64; exec(base64.b64decode('{script_b64}'))\""
+    try:
+        r = subprocess.run(["ssh", remote] + wsl_prefix + [scan_cmd], capture_output=True, text=True, timeout=15)
+        for uuid_line in r.stdout.splitlines():
+            uuid_line = uuid_line.strip()
+            if re.match(r"^[a-fA-F0-9-]{36}$", uuid_line):
+                if uuid_line not in conv_info:
+                    conv_info[uuid_line] = {"conversationId": uuid_line, "display": uuid_line[:8] + "...", "timestamp": 0, "local": False, "remote": True}
+                else:
+                    conv_info[uuid_line]["remote"] = True
+    except Exception:
+        pass
+
+    #Local scan: list conversations/ and brain/
+    for candidate_dir in [
+        os.path.join(local_dir, "conversations"),
+        os.path.join(local_dir, "brain")
+    ]:
+        if os.path.isdir(candidate_dir):
+            for name in os.listdir(candidate_dir):
+                uuid = name.split(".")[0]
+                if re.match(r"^[a-fA-F0-9-]{36}$", uuid):
+                    path = os.path.join(candidate_dir, name)
+                    if os.path.isdir(path) or name.endswith(".db"):
+                        if uuid not in conv_info:
+                            conv_info[uuid] = {"conversationId": uuid, "display": uuid[:8] + "...", "timestamp": 0, "local": True, "remote": False}
+                        else:
+                            conv_info[uuid]["local"] = True
+
+    #Sort chronologically by first message (most recent first)
+    full_list = sorted(conv_info.values(), key=lambda x: x.get("timestamp", 0), reverse=True)
+    if not full_list:
+        print("No conversations found on either machine.")
+        sys.exit(1)
+
+    conv_list = list(full_list)
+    while True:
+        print(f"\nAvailable conversations ({len(conv_list)} total):")
+        for idx, conv in enumerate(conv_list, 1):
+            in_local = conv.get("local", False)
+            in_remote = conv.get("remote", False)
+            origin = "both" if in_local and in_remote else ("remote" if in_remote else "local")
+            display_text = (conv.get("display", "") or "")[:70]
+            print(f" {idx:>2}. [{origin:<6}]  {display_text}")
+        if len(conv_list) < len(full_list):
+            sel = input(f"\nConversation number, keyword to filter, or 'all' to show full list: ").strip()
+        else:
+            sel = input(f"\nConversation number, keyword to search, or 'exit': ").strip()
+        if sel.lower() in ('exit', 'c', 'q'):
+            print("Synchronization canceled.")
+            if os.path.exists(remote_history_tmp):
+                os.remove(remote_history_tmp)
+            sys.exit(0)
+        if sel.lower() == 'all' and len(conv_list) < len(full_list):
+            conv_list = list(full_list)
+            continue
+        try:
+            sel_idx = int(sel) - 1
+            if 0 <= sel_idx < len(conv_list):
+                direct_target_id = conv_list[sel_idx].get("conversationId")
+                print(f"Selected conversation: '{conv_list[sel_idx].get('display', '')[:70]}'")
+                direct_selection = True
+                break
+            else:
+                print("That number is not in the list. Try again.")
+        except ValueError:
+            if not sel:
+                continue
+            filter_text = normalize(sel)
+            filtered = [c for c in full_list if filter_text in normalize(extract_text(c))]
+            if not filtered:
+                print(f"No conversation contains '{sel}'.")
+                continue
+            conv_list = filtered
 
 #Resolve specific conversation ID if sync_name is provided
 target_id = None
