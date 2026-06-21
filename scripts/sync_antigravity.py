@@ -46,18 +46,65 @@ raw_remote = args.remote
 sync_name = args.name
 is_interactive = sys.stdin and sys.stdin.isatty()
 
-# Interactive prompt for SSH host if not provided
+#FUNCTION: detect if remote uses WSL
+def detect_wsl(host):
+    try:
+        r = subprocess.run(["ssh", host, "wsl --status"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+#FUNCTION: check SSH connection, print message, return True/False
+def check_ssh(host, prefix):
+    try:
+        print(f"Checking SSH connection to {host}...")
+        subprocess.run(["ssh", "-o", "ConnectTimeout=10", host] + prefix + ["true"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        print("SSH connection successful.\n")
+        return True
+    except (subprocess.CalledProcessError, Exception) as e:
+        print(f"  Could not connect to '{host}'.")
+        return False
+
+#Interactive prompt for SSH host if not provided
 if not raw_remote:
-    print("Sincronización de Conversaciones - Antigravity CLI")
+    if not is_interactive:
+        print("Error: Remote host is required. Pass it as the first argument (e.g. python sync_antigravity.py pc).")
+        sys.exit(1)
+    print("Conversation Synchronization - Antigravity CLI")
     while True:
-        raw_remote = input("* Introduce el host remoto o alias de SSH (ej. pc, portatil, usuario@host): ").strip()
+        raw_remote = input("* Enter the remote SSH host or alias, or 'exit': ").strip()
+        if raw_remote.lower() in ('exit', 'c', 'q'):
+            print("Synchronization canceled.")
+            sys.exit(0)
         if not raw_remote:
-            print("El host remoto no puede estar vacío.")
             continue
         if not re.match(r"^(?:[a-zA-Z0-9_.-]+@)?[a-zA-Z0-9_.-]+$", raw_remote):
-            print("Formato de host inválido. Intenta de nuevo.")
+            print("  Invalid format. Example: pc, laptop, user@host")
             continue
-        break
+        remote = raw_remote
+        use_wsl_remote = detect_wsl(remote)
+        wsl_prefix = ["wsl"] if use_wsl_remote else []
+        if check_ssh(remote, wsl_prefix):
+            break
+        #If failed, ask for host again
+        raw_remote = None
+
+else:
+    #CLI: host passed as argument, validate and verify once
+    if not re.match(r"^(?:[a-zA-Z0-9_.-]+@)?[a-zA-Z0-9_.-]+$", raw_remote):
+        print("Error: Invalid remote host format. Example: pc, user@host")
+        sys.exit(1)
+    remote = raw_remote
+    use_wsl_remote = detect_wsl(remote)
+    wsl_prefix = ["wsl"] if use_wsl_remote else []
+    if not check_ssh(remote, wsl_prefix):
+        print("  Check the host name or your SSH configuration.")
+        sys.exit(1)
+
+local_dir = os.path.join(os.path.expanduser("~"), ".gemini", "antigravity-cli")
+local_history = os.path.join(local_dir, "history.jsonl")
+remote_history_tmp = os.path.join(tempfile.gettempdir(), "history.jsonl.remote")
+merged_history = local_history + ".merged"
 
 # Interactive prompt for sync type if not specified via --name and running in a terminal
 if not sync_name and is_interactive and len(sys.argv) <= 2:
@@ -79,42 +126,6 @@ if not sync_name and is_interactive and len(sys.argv) <= 2:
             break
         else:
             print("Opción inválida. Por favor, selecciona 1 o 2.")
-
-#Basic validation to prevent arbitrary flags
-if not re.match(r"^(?:[a-zA-Z0-9_.-]+@)?[a-zA-Z0-9_.-]+$", raw_remote):
-    print("Error: Invalid remote format. Expected user@host or host alias (e.g. pc).")
-    sys.exit(1)
-remote = raw_remote
-local_dir = os.path.join(os.path.expanduser("~"), ".gemini", "antigravity-cli")
-local_history = os.path.join(local_dir, "history.jsonl")
-remote_history_tmp = os.path.join(tempfile.gettempdir(), "history.jsonl.remote")
-merged_history = local_history + ".merged"
-
-#Detect if remote requires the 'wsl' prefix (Windows WSL via native SSH)
-use_wsl_remote = False
-try:
-    test_wsl = subprocess.run(["ssh", remote, "wsl --status"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-    if test_wsl.returncode == 0:
-        use_wsl_remote = True
-except Exception:
-    pass
-
-wsl_prefix = ["wsl"] if use_wsl_remote else []
-
-# PRE-FLIGHT CHECK: Verify SSH connection is active and valid before doing anything
-try:
-    print(f"\nChecking SSH connection to {remote}...")
-    subprocess.run(["ssh", "-o", "ConnectTimeout=10", remote] + wsl_prefix + ["true"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    print("SSH connection successful.")
-except (subprocess.CalledProcessError, Exception) as e:
-    err_msg = ""
-    if isinstance(e, subprocess.CalledProcessError):
-        err_msg = e.stderr.decode().strip()
-    print(f"Error: Unable to establish an SSH connection to '{remote}'.")
-    if err_msg:
-        print(f"Details: {err_msg}")
-    print("Please check your SSH configuration or network connection.")
-    sys.exit(1)
 
 #PHASE 1: PULL (Fetch from remote)
 
