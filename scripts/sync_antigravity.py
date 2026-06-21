@@ -8,6 +8,7 @@ import tempfile
 import argparse
 import unicodedata
 import tarfile
+import base64
 
 #Normalize text to lowercase and remove accents
 def normalize(text):
@@ -15,6 +16,25 @@ def normalize(text):
         return ""
     text = text.lower().strip()
     return "".join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
+
+def extract_text(entry):
+    """Extract all readable text from a history entry (display, parts, text, content)."""
+    texts = []
+    disp = entry.get("display")
+    if isinstance(disp, str) and disp:
+        texts.append(disp)
+    parts = entry.get("parts")
+    if isinstance(parts, list):
+        for p in parts:
+            if isinstance(p, dict):
+                txt = p.get("text") or p.get("content") or ""
+                if txt:
+                    texts.append(str(txt))
+    for field in ("text", "content", "title"):
+        val = entry.get(field)
+        if isinstance(val, str) and val:
+            texts.append(val)
+    return " ".join(texts)
 
 #Parse input arguments
 parser = argparse.ArgumentParser(description="Synchronize Antigravity CLI conversations.")
@@ -140,16 +160,31 @@ lines = local_lines + remote_lines
 target_id = None
 if sync_name:
     norm_search = normalize(sync_name)
-    matches = []
-    seen_ids = set()
+
+    #Group all messages by conversationId to search the full content
+    #of each conversation and use the oldest message as its visible representative.
+    #This avoids false positives from substrings (e.g. "list" in "minimalist")
+    #and ensures the result always shows the session's initial message.
+    conv_groups = {}
     for item in lines:
         conv_id = item.get("conversationId")
-        display = item.get("display", "")
-        if conv_id and conv_id not in seen_ids:
-            if norm_search in normalize(display):
-                matches.append(item)
-                seen_ids.add(conv_id)
-                
+        if not conv_id:
+            continue
+        if conv_id not in conv_groups:
+            conv_groups[conv_id] = []
+        conv_groups[conv_id].append(item)
+
+    #Search without word boundaries to capture partial matches,
+    #and across all text fields (display, parts, text, content) to
+    #not rely solely on the AI-generated title.
+    pattern = re.compile(re.escape(norm_search))
+    matches = []
+    for conv_id, messages in conv_groups.items():
+        found = any(pattern.search(normalize(extract_text(m))) for m in messages)
+        if found:
+            representative = min(messages, key=lambda x: x.get("timestamp", 0))
+            matches.append(representative)
+
     if not matches:
         print(f"Error: No conversation matching '{sync_name}' was found.")
         sys.exit(1)
