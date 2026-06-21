@@ -57,3 +57,9 @@ If you run the script manually from an IDE terminal (like VS Code) or directly i
 
 ## Security Audits (False Positives)
 If you scan this script with static security analysis tools (like Gen Agent Trust Hub or Snyk), warnings about insecure data transfer or confidential information might be generated. These alerts are expected false positives: the tool performs a legitimate transfer of your session databases and unifies the installation identifier across your private SSH tunnel to ensure service continuity on your own machines.
+
+---
+
+## Contributions
+
+Contributions, issues, and feature requests are welcome. Feel free to check the open issues or submit a PR.

@@ -57,3 +57,9 @@ Si ejecutas el script de forma manual desde un IDE (como la terminal de VS Code)
 
 ## Análisis de Seguridad (Falsos Positivos)
 Si analizas este script con herramientas de seguridad estática (como Gen Agent Trust Hub o Snyk), podrían generarse advertencias de transferencia insegura de datos o de información confidencial. Estas alertas son falsos positivos esperados: la herramienta realiza una transferencia legítima de tus bases de datos de sesión y unifica el identificador de instalación a través de tu túnel SSH privado para garantizar la continuidad del servicio en tus propios equipos.
+
+---
+
+## Contribuciones
+
+Las contribuciones, issues y feature requests son bienvenidos. Siéntete libre de revisar los issues abiertos o enviar un PR.
