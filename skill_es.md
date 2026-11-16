@@ -16,10 +16,12 @@ Esta skill realiza una **sincronización bidireccional real**. Cuando se ejecuta
 ## Arquitectura y Funcionamiento
 Antigravity CLI tiene una arquitectura de cliente descentralizada. Para lograr una transición fluida y mantener la continuidad de la sesión, esta skill sincroniza los siguientes componentes críticos:
 
-1. **`history.jsonl` (El Índice):** El archivo maestro leído por el comando `/resume`. Si una conversación no está aquí, no existe para la interfaz de usuario.
-2. **`brain/` (La Memoria):** Almacena archivos estáticos, registros y transcripciones de cada paso ejecutado por la IA.
-3. **`conversations/` (Las Bases de Datos):** Cada sesión genera su propio archivo SQLite (`.db`). Es crucial para restaurar el estado de la interfaz y los bloques de texto enriquecido en la terminal.
-4. **`installation_id` (La Clave de Entorno):** El servidor backend de Antigravity asocia los Workspaces con este ID. Sincronizarlo evita errores de validación de proyectos y mantiene segura la conexión de la sesión.
+1. **`history.jsonl` (El Índice):** El archivo maestro leído por el historial de la CLI. Se fusiona cronológicamente y se deduplica por marca de tiempo y ID de conversación.
+2. **`brain/` (La Memoria):** Almacena archivos estáticos, registros, artefactos y transcripciones de cada paso ejecutado por la IA.
+3. **`conversations/` (Bases de Datos de Sesión):** Cada sesión genera su propio archivo SQLite (`.db`). Contiene la trayectoria requerida por `GetConversationDetail` al retomar una sesión.
+4. **`annotations/` (Anotaciones):** Archivos Protobuf (`.pbtxt`) con metadatos y anotaciones de la sesión.
+5. **`conversation_summaries.db` (Resúmenes Globales e Índice FTS):** Base de datos SQLite global que usa `agy` para listar sesiones en `/resume` y búsquedas. La skill sincroniza los resúmenes y los índices de texto completo asegurando estados (`CASCADE_RUN_STATUS_IDLE`) y marcas de tiempo válidas.
+6. **Compatibilidad SSH con Windows y WSL:** Ejecuta comandos remotos con escape seguro para WSL (`wsl -e bash -c "<cmd>"`), permitiendo una comunicación fluida entre Windows y Linux sin que Windows altere las rutas.
 
 *(Nota: Al sincronizar la clave de entorno, el sistema podría mostrar una leve advertencia indicando que el entorno ha cambiado, pero gracias a la coincidencia de claves y bases de datos, permitirá el funcionamiento normal).*
 

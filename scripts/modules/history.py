@@ -84,6 +84,8 @@ def merge_and_dedup(local_lines, remote_lines):
 # Search conversations whose text matches a term (partial, normalized search)
 def search_conversations(term, lines):
     """Search conversations whose text matches a term (partial, normalized search)."""
+    from modules.db_sync import get_db_titles
+
     search_term = normalize(term)
     pattern = re.compile(re.escape(search_term))
     groups = {}
@@ -95,10 +97,32 @@ def search_conversations(term, lines):
             groups[cid] = []
         groups[cid].append(elem)
 
+    # Enrich with database titles
+    db_titles = get_db_titles()
+
     matches = []
+    # 1. Match from history messages
+    matched_cids = set()
     for cid, messages in groups.items():
         if any(pattern.search(normalize(extract_text(m))) for m in messages):
             matches.append(min(messages, key=lambda x: x.get("timestamp", 0)))
+            matched_cids.add(cid)
+
+    # 2. Match from database titles if not already matched
+    for cid, info in db_titles.items():
+        if cid not in matched_cids:
+            title_text = f"{info.get('title', '')} {info.get('preview', '')}"
+            if pattern.search(normalize(title_text)):
+                # If conversation exists in history, pick its earliest message
+                if cid in groups:
+                    matches.append(min(groups[cid], key=lambda x: x.get("timestamp", 0)))
+                else:
+                    matches.append({
+                        "conversationId": cid,
+                        "display": info.get("title") or info.get("preview") or cid,
+                        "timestamp": 0,
+                    })
+                matched_cids.add(cid)
 
     return matches
 
@@ -106,6 +130,9 @@ def search_conversations(term, lines):
 # Collect metadata of each conversation from both histories for interactive listing
 def collect_conversation_info(local_lines, remote_lines):
     """Collect metadata of each conversation from both histories for interactive listing."""
+    from modules.db_sync import get_db_titles
+
+    db_titles = get_db_titles()
     conv_info = {}
     for elem, is_local in [(e, True) for e in local_lines] + [
         (e, False) for e in remote_lines
@@ -143,4 +170,12 @@ def collect_conversation_info(local_lines, remote_lines):
             text = extract_text(elem)
             if text and not text.startswith("/"):
                 conv_info[cid]["text_content"] = text[:70]
+
+    # If display is a slash command or empty, enrich with DB title
+    for cid, info in conv_info.items():
+        if cid in db_titles:
+            db_title = db_titles[cid].get("title")
+            if db_title and (not info["display"] or info["display"].startswith("/")):
+                info["display"] = db_title
+
     return conv_info

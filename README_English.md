@@ -5,10 +5,11 @@ This tool allows you to automatically synchronize, backup, and merge your Antigr
 It is specifically designed for developers who work on multiple machines (such as a desktop PC and a laptop) and want to continue their work sessions exactly where they left off.
 
 ## What does this tool do?
-* **Full Synchronization (Mirror):** Merges the conversation histories of both computers in chronological order, removes duplicate records, and updates the memory files (`brain/`) and session databases (`conversations/`) on both ends.
-* **Selective Synchronization:** Allows you to search for a specific conversation using a part of its title and transfer only its associated files, without altering the rest of your local chats.
-* **Active Session Protection:** If the sync is executed by the AI agent itself, the database of the active conversation is automatically excluded to prevent files from getting corrupted while they are being written to.
-* **Pure Python Portability:** All compression and transfer operations are handled using Python's standard `tarfile` module. It does not require external operating system tools (such as `tar` or `find`), ensuring it runs natively on Windows (CMD/PowerShell), Linux, macOS, and WSL without additional configurations.
+* **Full Synchronization (Mirror):** Merges the conversation histories of both computers in chronological order, removes duplicate records, and updates memory files (`brain/`), session databases (`conversations/*.db`), annotations (`annotations/`), and global SQLite indices (`conversation_summaries.db`) on both ends.
+* **Selective Synchronization:** Allows you to search for a specific conversation using partial title keywords (searching across both `history.jsonl` and `conversation_summaries.db`) and transfer only its associated files and database records, without altering the rest of your local chats.
+* **Windows & WSL Compatibility:** Safely wraps commands for WSL targets (`wsl -e bash -c "<cmd>"`), enabling seamless cross-platform synchronization between Windows with WSL and Linux/macOS without path expansion issues.
+* **Active Session Protection:** If the sync is executed by the AI agent itself, the database of the active conversation is automatically excluded (`ACTIVE_CONVERSATION_ID`) to prevent files from getting corrupted while they are being written to.
+* **Pure Python Portability:** All compression, transfer, and SQLite operations are handled using Python's standard library (`tarfile`, `sqlite3`, `json`, `shlex`) without third-party dependencies.
 
 ## Prerequisites
 For the synchronization to work properly, you must meet the following requirements:

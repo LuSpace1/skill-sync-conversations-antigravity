@@ -29,11 +29,12 @@ def _get_local_conversation_paths(target_id):
     brain_path = os.path.join(BASE_DIR, "brain", target_id)
     if os.path.exists(brain_path):
         paths.append(os.path.join("brain", target_id))
-    conv_dir = os.path.join(BASE_DIR, "conversations")
-    if os.path.exists(conv_dir):
-        for fname in os.listdir(conv_dir):
-            if fname.startswith(target_id):
-                paths.append(os.path.join("conversations", fname))
+    for folder in ["conversations", "annotations"]:
+        folder_path = os.path.join(BASE_DIR, folder)
+        if os.path.exists(folder_path):
+            for fname in os.listdir(folder_path):
+                if fname.startswith(target_id):
+                    paths.append(os.path.join(folder, fname))
     return paths
 
 
@@ -56,7 +57,7 @@ def complete_sync(host, use_wsl):
         sys.exit(1)
 
     paths = []
-    for item in ["brain", "conversations"]:
+    for item in ["brain", "conversations", "annotations", "conversation_summaries.db"]:
         path = os.path.join(BASE_DIR, item)
         if os.path.exists(path):
             paths.append(item)
@@ -104,7 +105,7 @@ def pull_conversation(host, use_wsl, target_id):
         sys.exit(1)
 
 
-#Push: send a specific conversation from local to remote
+# Push: send a specific conversation from local to remote
 def push_conversation(host, use_wsl, target_id):
     """Push: send a specific conversation from local to remote."""
     local_lines = load_history(HISTORY_FILE)
@@ -131,7 +132,7 @@ def push_conversation(host, use_wsl, target_id):
 
     paths = _get_local_conversation_paths(target_id)
     if paths:
-        ok = upload_files_via_tar(host, use_wsl, paths)
+        ok = upload_files_via_tar(host, use_wsl, paths, target_id=target_id)
         if not ok:
             sys.exit(1)
     else:

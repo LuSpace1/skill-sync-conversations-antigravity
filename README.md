@@ -5,10 +5,11 @@ Esta herramienta te permite sincronizar, respaldar y fusionar de manera automát
 Está diseñada especialmente para desarrolladores que trabajan en varios equipos (como una computadora de escritorio y una portátil) y desean continuar sus sesiones de trabajo exactamente donde las dejaron.
 
 ## ¿Qué hace esta herramienta?
-* **Sincronización completa (Espejo):** Combina los historiales de conversación de ambas computadoras en orden cronológico, elimina registros duplicados y actualiza los archivos de memoria (`brain/`) y las bases de datos de sesión (`conversations/`) en ambos extremos.
-* **Sincronización selectiva:** Permite buscar una conversación específica usando una parte de su título y transferir únicamente sus archivos asociados, sin alterar el resto de las conversaciones locales.
-* **Protección de sesión activa:** Si la sincronización es ejecutada por el propio agente de IA, se excluye de forma automática la base de datos de la conversación activa para evitar que los archivos se corrompan mientras se escribe en ellos.
-* **Portabilidad total en Python:** Toda la compresión y transferencia se realiza usando el módulo estándar `tarfile` de Python. No requiere comandos externos del sistema operativo (como `tar` o `find`), lo que garantiza que funcione nativamente en Windows (CMD/PowerShell), Linux, macOS y WSL sin configuraciones adicionales.
+* **Sincronización completa (Espejo):** Combina los historiales de conversación de ambas computadoras en orden cronológico, elimina registros duplicados y actualiza los archivos de memoria (`brain/`), las bases de datos de sesión (`conversations/*.db`), anotaciones (`annotations/`) y la base de datos global de resúmenes (`conversation_summaries.db`).
+* **Sincronización selectiva:** Permite buscar una conversación específica usando su título o palabras clave (buscando tanto en `history.jsonl` como en `conversation_summaries.db`) y transferir únicamente sus archivos y registros asociados, sin alterar el resto de las conversaciones locales.
+* **Compatibilidad Windows y WSL:** Ejecuta comandos remotos con escape seguro para WSL (`wsl -e bash -c "<cmd>"`), permitiendo una comunicación perfecta entre máquinas Windows con WSL y máquinas Linux/macOS sin que Windows altere las rutas Linux.
+* **Protección de sesión activa:** Si la sincronización es ejecutada por el propio agente de IA, se excluye de forma automática la base de datos de la conversación activa (`ACTIVE_CONVERSATION_ID`) para evitar que los archivos se corrompan mientras se escribe en ellos.
+* **Portabilidad total en Python:** Toda la compresión, transferencia y manipulación de bases de datos se realiza usando los módulos estándar de Python (`tarfile`, `sqlite3`, `json`, `shlex`). No requiere dependencias externas de terceros ni herramientas adicionales.
 
 ## Requisitos previos
 Para que la sincronización funcione correctamente, debes cumplir con lo siguiente:
